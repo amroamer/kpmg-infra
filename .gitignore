@@ -1,0 +1,5 @@
+.env.production
+.env.local
+nginx/ssl/
+nginx/nginx.conf
+backups/

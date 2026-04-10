@@ -1,0 +1,289 @@
+services:
+  # ============================================
+  # Shared Nginx Reverse Proxy
+  # ============================================
+  nginx:
+    image: nginx:latest
+    container_name: kpmg-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "9443:9443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    networks:
+      - kpmg-network
+      - ragflow-network
+    depends_on:
+      - slides-frontend
+      - slides-backend
+      - sahab-app
+      - dataowner-app
+      - badges-nginx
+      - landing-app
+
+  # ============================================
+  # Slides Generator
+  # ============================================
+  slides-frontend:
+    build:
+      context: /opt/apps/slides-generator/frontend
+    container_name: slides-frontend
+    restart: unless-stopped
+    environment:
+      - NEXT_PUBLIC_API_URL=/slide-generator/api
+    depends_on:
+      slides-backend:
+        condition: service_healthy
+    networks:
+      - kpmg-network
+
+  slides-backend:
+    build:
+      context: /opt/apps/slides-generator/backend
+    container_name: slides-backend
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      slides-db:
+        condition: service_healthy
+      slides-redis:
+        condition: service_healthy
+    env_file:
+      - /opt/apps/slides-generator/.env
+    volumes:
+      - sg_uploads:/app/uploads
+      - sg_outputs:/app/outputs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 60s
+      timeout: 15s
+      retries: 5
+      start_period: 40s
+    networks:
+      - kpmg-network
+
+  slides-db:
+    image: postgres:16-alpine
+    container_name: slides-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${SG_POSTGRES_USER}
+      - POSTGRES_PASSWORD=${SG_POSTGRES_PASSWORD}
+      - POSTGRES_DB=${SG_POSTGRES_DB}
+    volumes:
+      - sg_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SG_POSTGRES_USER} -d ${SG_POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - kpmg-network
+
+  slides-redis:
+    image: redis:7-alpine
+    container_name: slides-redis
+    restart: unless-stopped
+    volumes:
+      - sg_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - kpmg-network
+
+  # ============================================
+  # Sahab
+  # ============================================
+  sahab-app:
+    build:
+      context: /opt/apps/sahab
+    container_name: sahab-app
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - DATABASE_URL=postgresql://${SAHAB_POSTGRES_USER}:${SAHAB_POSTGRES_PASSWORD}@sahab-db:5432/${SAHAB_POSTGRES_DB}
+    depends_on:
+      sahab-db:
+        condition: service_healthy
+    networks:
+      - kpmg-network
+
+  sahab-db:
+    image: postgres:16-alpine
+    container_name: sahab-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${SAHAB_POSTGRES_USER}
+      - POSTGRES_PASSWORD=${SAHAB_POSTGRES_PASSWORD}
+      - POSTGRES_DB=${SAHAB_POSTGRES_DB}
+    volumes:
+      - sahab_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SAHAB_POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - kpmg-network
+
+  # ============================================
+  # Data Owner Agent
+  # ============================================
+  dataowner-migrate:
+    build:
+      context: /opt/apps/data-owner-agent
+      target: builder
+    container_name: dataowner-migrate
+    command: npm run db:push
+    environment:
+      - DATABASE_URL=postgres://${DOA_POSTGRES_USER}:${DOA_POSTGRES_PASSWORD}@dataowner-db:5432/${DOA_POSTGRES_DB}
+    depends_on:
+      dataowner-db:
+        condition: service_healthy
+    networks:
+      - kpmg-network
+
+  dataowner-app:
+    build:
+      context: /opt/apps/data-owner-agent
+    container_name: dataowner-app
+    restart: unless-stopped
+    env_file:
+      - /opt/apps/data-owner-agent/.env
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - DATABASE_URL=postgres://${DOA_POSTGRES_USER}:${DOA_POSTGRES_PASSWORD}@dataowner-db:5432/${DOA_POSTGRES_DB}
+    depends_on:
+      dataowner-db:
+        condition: service_healthy
+      dataowner-migrate:
+        condition: service_completed_successfully
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - kpmg-network
+
+  dataowner-db:
+    image: postgres:16-alpine
+    container_name: dataowner-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${DOA_POSTGRES_USER}
+      - POSTGRES_PASSWORD=${DOA_POSTGRES_PASSWORD}
+      - POSTGRES_DB=${DOA_POSTGRES_DB}
+    volumes:
+      - doa_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DOA_POSTGRES_USER} -d ${DOA_POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - kpmg-network
+
+  # ============================================
+  # AI Badges (AICompAgent)
+  # ============================================
+  badges-backend:
+    build:
+      context: /opt/apps/AICompAgent/backend
+    container_name: badges-backend
+    restart: unless-stopped
+    env_file:
+      - /opt/apps/AICompAgent/.env
+    volumes:
+      - badges_uploads:/app/uploads
+    depends_on:
+      badges-db:
+        condition: service_healthy
+    networks:
+      - kpmg-network
+
+  badges-frontend:
+    build:
+      context: /opt/apps/AICompAgent/frontend
+    container_name: badges-frontend
+    restart: unless-stopped
+    env_file:
+      - /opt/apps/AICompAgent/.env
+    depends_on:
+      - badges-backend
+    networks:
+      - kpmg-network
+
+  badges-nginx:
+    image: nginx:alpine
+    container_name: badges-nginx
+    restart: unless-stopped
+    volumes:
+      - ./nginx/badges/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - badges-backend
+      - badges-frontend
+    networks:
+      - kpmg-network
+
+  badges-db:
+    image: postgres:16-alpine
+    container_name: badges-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${BADGES_POSTGRES_USER}
+      - POSTGRES_PASSWORD=${BADGES_POSTGRES_PASSWORD}
+      - POSTGRES_DB=${BADGES_POSTGRES_DB}
+    volumes:
+      - badges_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${BADGES_POSTGRES_USER} -d ${BADGES_POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - kpmg-network
+
+  # ============================================
+  # AI Data Landing Page
+  # ============================================
+  landing-app:
+    build:
+      context: /opt/apps/Ai-Data-LandingPage
+    container_name: landing-app
+    restart: unless-stopped
+    networks:
+      - kpmg-network
+
+volumes:
+  sg_uploads:
+  sg_outputs:
+  sg_db_data:
+    external: true
+    name: slides-generator_db_data
+  sg_redis_data:
+  sahab_db_data:
+    external: true
+    name: sahab_pgdata
+  doa_db_data:
+    external: true
+    name: data-owner-agent_postgres_data
+  badges_db_data:
+    external: true
+    name: aicompagent_pgdata
+  badges_uploads:
+
+
+
+networks:
+  kpmg-network:
+    driver: bridge
+  ragflow-network:
+    external: true
+    name: docker_ragflow

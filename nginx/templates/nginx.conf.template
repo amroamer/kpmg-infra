@@ -1,0 +1,157 @@
+worker_processes auto;
+events {
+    worker_connections 1024;
+}
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    sendfile        on;
+    keepalive_timeout  65;
+    client_max_body_size 100M;
+
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml text/javascript;
+
+    upstream slides-frontend  { server slides-frontend:3000; }
+    upstream slides-backend   { server slides-backend:8000; }
+    upstream sahab-app        { server sahab-app:5000; }
+    upstream dataowner-app    { server dataowner-app:5000; }
+    upstream badges-nginx     { server badges-nginx:80; }
+    upstream landing-app      { server landing-app:80; }
+    upstream ragflow-app      { server ${RAGFLOW_HOST}:${RAGFLOW_PORT}; }
+
+    server {
+        listen 80;
+        server_name ${SERVER_NAME};
+        return 301 https://$host$request_uri;
+    }
+
+    server {
+        listen 443 ssl;
+        server_name ${SERVER_NAME};
+
+        ssl_certificate /etc/nginx/ssl/server.crt;
+        ssl_certificate_key /etc/nginx/ssl/server.key;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_ciphers HIGH:!aNULL:!MD5;
+
+        location /slide-generator/api/ {
+            proxy_pass http://slides-backend/api/;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_read_timeout 300s;
+        }
+
+        location /slide-generator/uploads/ {
+            proxy_pass http://slides-backend/uploads/;
+            proxy_set_header Host $host;
+        }
+
+        location = /slide-generator {
+            return 301 /slide-generator/login;
+        }
+
+        location /slide-generator {
+            proxy_pass http://slides-frontend;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+        }
+
+        location /cloudsahab/ {
+            proxy_pass http://sahab-app/cloudsahab/;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+        }
+
+        location = /dataowner {
+            return 301 /dataowner/;
+        }
+
+        location /dataowner/ {
+            proxy_pass http://dataowner-app;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+        }
+
+        location /AICompAgent/api/ {
+            proxy_pass http://badges-nginx/AICompAgent/api/;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_read_timeout 300s;
+        }
+
+        location = /AICompAgent {
+            return 301 /AICompAgent/login;
+        }
+
+        location /AICompAgent {
+            proxy_pass http://badges-nginx;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+        }
+
+        location /ai-data/ {
+            proxy_pass http://landing-app/;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location / {
+            return 302 /slide-generator/login;
+        }
+    }
+
+    server {
+        listen 9443 ssl;
+        server_name ${SERVER_NAME};
+
+        ssl_certificate /etc/nginx/ssl/server.crt;
+        ssl_certificate_key /etc/nginx/ssl/server.key;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_ciphers HIGH:!aNULL:!MD5;
+
+        location / {
+            proxy_pass http://ragflow-app/;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+        }
+    }
+}
