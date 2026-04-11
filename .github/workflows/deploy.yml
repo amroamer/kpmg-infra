@@ -11,10 +11,10 @@ jobs:
     steps:
       - name: Pull all repos and deploy
         run: |
-          cd /opt/apps/AICompAgent && git pull origin main
-          cd /opt/apps/slides-generator && git pull origin main
-          cd /opt/apps/data-owner-agent && git pull origin main
-          cd /opt/apps/sahab && git pull origin main
-          cd /opt/apps/Ai-Data-LandingPage && git pull origin main
+          cd /opt/apps/AICompAgent && git reset --hard origin/main && git pull origin main
+          cd /opt/apps/slides-generator && git reset --hard origin/main && git pull origin main
+          cd /opt/apps/data-owner-agent && git reset --hard origin/main && git pull origin main
+          cd /opt/apps/sahab && git reset --hard origin/main && git pull origin main
+          cd /opt/apps/Ai-Data-LandingPage && git reset --hard origin/main && git pull origin main
           cd /opt/kpmg-infra && git pull origin main
           ./scripts/deploy.sh
