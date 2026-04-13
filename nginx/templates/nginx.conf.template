@@ -18,8 +18,10 @@ http {
     upstream slides-backend   { server slides-backend:8000; }
     upstream sahab-app        { server sahab-app:5000; }
     upstream dataowner-app    { server dataowner-app:5000; }
-    upstream badges-nginx     { server badges-nginx:80; }
+    upstream badges-frontend  { server badges-frontend:3000; }
+    upstream badges-backend   { server badges-backend:8000; }
     upstream landing-app      { server landing-app:80; }
+    upstream auth-service     { server auth-service:8000; }
     upstream ragflow-app      { server ${RAGFLOW_HOST}:${RAGFLOW_PORT}; }
 
     server {
@@ -37,7 +39,40 @@ http {
         ssl_protocols TLSv1.2 TLSv1.3;
         ssl_ciphers HIGH:!aNULL:!MD5;
 
+        location = /auth/verify {
+            internal;
+            proxy_pass http://auth-service/auth/api/verify;
+            proxy_pass_request_body off;
+            proxy_set_header Content-Length "";
+            proxy_set_header X-Original-URI $request_uri;
+            proxy_set_header Cookie $http_cookie;
+        }
+
+        error_page 401 = @login_redirect;
+        location @login_redirect {
+            return 302 /ai-data/login;
+        }
+
+        location /auth/api/ {
+            proxy_pass http://auth-service/auth/api/;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location /ai-data {
+            proxy_pass http://landing-app;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
         location /slide-generator/api/ {
+            auth_request /auth/verify;
             proxy_pass http://slides-backend/api/;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
@@ -50,15 +85,13 @@ http {
         }
 
         location /slide-generator/uploads/ {
+            auth_request /auth/verify;
             proxy_pass http://slides-backend/uploads/;
             proxy_set_header Host $host;
         }
 
-        location = /slide-generator {
-            return 301 /slide-generator/login;
-        }
-
         location /slide-generator {
+            auth_request /auth/verify;
             proxy_pass http://slides-frontend;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
@@ -70,6 +103,7 @@ http {
         }
 
         location /cloudsahab/ {
+            auth_request /auth/verify;
             proxy_pass http://sahab-app/cloudsahab/;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
@@ -85,6 +119,7 @@ http {
         }
 
         location /dataowner/ {
+            auth_request /auth/verify;
             proxy_pass http://dataowner-app;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
@@ -96,7 +131,9 @@ http {
         }
 
         location /AICompAgent/api/ {
-            proxy_pass http://badges-nginx/AICompAgent/api/;
+            auth_request /auth/verify;
+            rewrite ^/AICompAgent/api/(.*) /api/$1 break;
+            proxy_pass http://badges-backend;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -105,12 +142,9 @@ http {
             proxy_read_timeout 300s;
         }
 
-        location = /AICompAgent {
-            return 301 /AICompAgent/login;
-        }
-
         location /AICompAgent {
-            proxy_pass http://badges-nginx;
+            auth_request /auth/verify;
+            proxy_pass http://badges-frontend;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -120,17 +154,8 @@ http {
             proxy_set_header Connection "upgrade";
         }
 
-        location /ai-data/ {
-            proxy_pass http://landing-app/;
-            proxy_http_version 1.1;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-        }
-
         location / {
-            return 302 /slide-generator/login;
+            return 302 /ai-data/;
         }
     }
 
