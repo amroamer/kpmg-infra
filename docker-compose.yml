@@ -21,8 +21,52 @@ services:
       - slides-backend
       - sahab-app
       - dataowner-app
-      - badges-nginx
+      - badges-frontend
+      - badges-backend
       - landing-app
+      - auth-service
+
+  # ============================================
+  # Shared Auth Database
+  # ============================================
+  shared-db:
+    image: postgres:16-alpine
+    container_name: shared-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${AUTH_POSTGRES_USER}
+      - POSTGRES_PASSWORD=${AUTH_POSTGRES_PASSWORD}
+      - POSTGRES_DB=${AUTH_POSTGRES_DB}
+    volumes:
+      - auth_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AUTH_POSTGRES_USER} -d ${AUTH_POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - kpmg-network
+
+  # ============================================
+  # Auth Service
+  # ============================================
+  auth-service:
+    build:
+      context: /opt/apps/Ai-Data-LandingPage/auth-service
+    container_name: auth-service
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${AUTH_POSTGRES_USER}:${AUTH_POSTGRES_PASSWORD}@shared-db:5432/${AUTH_POSTGRES_DB}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRY_HOURS=24
+      - COOKIE_DOMAIN=${SERVER_NAME}
+      - DEFAULT_ADMIN_EMAIL=admin@kpmg.com
+      - DEFAULT_ADMIN_PASSWORD=Admin123!
+    depends_on:
+      shared-db:
+        condition: service_healthy
+    networks:
+      - kpmg-network
 
   # ============================================
   # Slides Generator
@@ -200,6 +244,8 @@ services:
     restart: unless-stopped
     env_file:
       - /opt/apps/AICompAgent/.env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${BADGES_POSTGRES_USER}:${BADGES_POSTGRES_PASSWORD}@badges-db:5432/${BADGES_POSTGRES_DB}
     volumes:
       - badges_uploads:/app/uploads
     depends_on:
@@ -217,18 +263,6 @@ services:
       - /opt/apps/AICompAgent/.env
     depends_on:
       - badges-backend
-    networks:
-      - kpmg-network
-
-  badges-nginx:
-    image: nginx:alpine
-    container_name: badges-nginx
-    restart: unless-stopped
-    volumes:
-      - ./nginx/badges/nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - badges-backend
-      - badges-frontend
     networks:
       - kpmg-network
 
@@ -278,8 +312,7 @@ volumes:
     external: true
     name: aicompagent_pgdata
   badges_uploads:
-
-
+  auth_db_data:
 
 networks:
   kpmg-network:
