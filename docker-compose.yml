@@ -242,6 +242,8 @@ services:
       context: /opt/apps/AICompAgent/backend
     container_name: badges-backend
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     env_file:
       - /opt/apps/AICompAgent/.env
     environment:
