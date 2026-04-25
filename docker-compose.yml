@@ -89,16 +89,15 @@ services:
     build:
       context: /opt/apps/slides-generator/backend
     container_name: slides-backend
-    restart: unless-stopped
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    env_file:
+      - /opt/apps/slides-generator/.env
+    environment:
+      REDIS_URL: redis://slides-redis:6379/0
     depends_on:
       slides-db:
         condition: service_healthy
       slides-redis:
         condition: service_healthy
-    env_file:
-      - /opt/apps/slides-generator/.env
     volumes:
       - sg_uploads:/app/uploads
       - sg_outputs:/app/outputs
