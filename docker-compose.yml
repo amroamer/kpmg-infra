@@ -377,16 +377,13 @@ services:
   # ============================================
   kpv-api:
     build:
-      context: /opt/apps/key-pulse-view/server
-      dockerfile: ../Dockerfile.backend
+      context: /opt/apps/key-pulse-view
+      dockerfile: Dockerfile.backend
     container_name: kpv-api
     restart: unless-stopped
     environment:
       OLLAMA_HOST: http://ollama-shared:11434
       OLLAMA_MODEL: qwen2.5:7b
-      DATA_DIR: /data
-    volumes:
-      - /opt/apps/key-pulse-view/src/data:/data:ro
     depends_on:
       ollama-shared:
         condition: service_started
