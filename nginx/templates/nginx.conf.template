@@ -25,7 +25,7 @@ http {
     upstream arch-frontend    { server arch-frontend:5173; }
     upstream arch-backend     { server arch-backend:8000; }
     upstream kpv-frontend     { server kpv-frontend:80; }
-    upstream kpv-api          { server kpv-api:8765; }
+    upstream kpv-api          { server kpv-api:8000; }
     upstream ragflow-app      { server ${RAGFLOW_HOST}:${RAGFLOW_PORT}; }
 
     server {
