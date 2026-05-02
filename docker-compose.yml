@@ -125,6 +125,7 @@ services:
     volumes:
       - sg_uploads:/app/uploads
       - sg_outputs:/app/outputs
+      - /opt/apps/slides-generator/shared:/app/shared:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
       interval: 60s
