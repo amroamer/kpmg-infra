@@ -28,6 +28,27 @@ services:
       - auth-service
 
   # ============================================
+  # Shared Ollama (one container, all apps connect)
+  # ============================================
+  ollama-shared:
+    image: ollama/ollama:latest
+    container_name: ollama-shared
+    restart: unless-stopped
+    volumes:
+      - ollama_models:/root/.ollama
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - kpmg-network
+
+  # ============================================
   # Shared Auth Database
   # ============================================
   shared-db:
@@ -93,11 +114,14 @@ services:
       - /opt/apps/slides-generator/.env
     environment:
       REDIS_URL: redis://slides-redis:6379/0
+      OLLAMA_BASE_URL: http://ollama-shared:11434
     depends_on:
       slides-db:
         condition: service_healthy
       slides-redis:
         condition: service_healthy
+      ollama-shared:
+        condition: service_started
     volumes:
       - sg_uploads:/app/uploads
       - sg_outputs:/app/outputs
@@ -206,11 +230,14 @@ services:
       - NODE_ENV=production
       - PORT=5000
       - DATABASE_URL=postgres://${DOA_POSTGRES_USER}:${DOA_POSTGRES_PASSWORD}@dataowner-db:5432/${DOA_POSTGRES_DB}
+      - OLLAMA_BASE_URL=http://ollama-shared:11434
     depends_on:
       dataowner-db:
         condition: service_healthy
       dataowner-migrate:
         condition: service_completed_successfully
+      ollama-shared:
+        condition: service_started
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
@@ -248,11 +275,14 @@ services:
       - /opt/apps/AICompAgent/.env
     environment:
       - DATABASE_URL=postgresql+asyncpg://${BADGES_POSTGRES_USER}:${BADGES_POSTGRES_PASSWORD}@badges-db:5432/${BADGES_POSTGRES_DB}
+      - OLLAMA_BASE_URL=http://ollama-shared:11434
     volumes:
       - badges_uploads:/app/uploads
     depends_on:
       badges-db:
         condition: service_healthy
+      ollama-shared:
+        condition: service_started
     networks:
       - kpmg-network
 
@@ -315,6 +345,7 @@ volumes:
     name: aicompagent_pgdata
   badges_uploads:
   auth_db_data:
+  ollama_models:
 
 networks:
   kpmg-network:
