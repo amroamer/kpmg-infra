@@ -22,6 +22,10 @@ http {
     upstream badges-backend   { server badges-backend:8000; }
     upstream landing-app      { server landing-app:80; }
     upstream auth-service     { server auth-service:8000; }
+    upstream arch-frontend    { server arch-frontend:5173; }
+    upstream arch-backend     { server arch-backend:8000; }
+    upstream kpv-frontend     { server kpv-frontend:80; }
+    upstream kpv-api          { server kpv-api:8765; }
     upstream ragflow-app      { server ${RAGFLOW_HOST}:${RAGFLOW_PORT}; }
 
     server {
@@ -148,6 +152,54 @@ http {
         location /AICompAgent {
             auth_request /auth/verify;
             proxy_pass http://badges-frontend;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+        }
+
+        location /EAArchAgent/api/ {
+            auth_request /auth/verify;
+            rewrite ^/EAArchAgent/api/(.*) /api/$1 break;
+            proxy_pass http://arch-backend;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_read_timeout 300s;
+        }
+
+        location /EAArchAgent {
+            auth_request /auth/verify;
+            proxy_pass http://arch-frontend;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+        }
+
+        location /khda/api/ {
+            auth_request /auth/verify;
+            rewrite ^/khda/api/(.*) /api/$1 break;
+            proxy_pass http://kpv-api;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_read_timeout 300s;
+        }
+
+        location /khda {
+            auth_request /auth/verify;
+            proxy_pass http://kpv-frontend;
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;

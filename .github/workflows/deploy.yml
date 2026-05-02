@@ -1,21 +1,73 @@
 name: Deploy to VM
-
 on:
   push:
     branches: [main]
   workflow_dispatch:
-
 jobs:
   deploy:
     runs-on: self-hosted
     steps:
       - name: Pull all repos and deploy
         run: |
+          # ============================================
+          # AI Badges (AICompAgent)
+          # ============================================
+          if [ ! -d "/opt/apps/AICompAgent/.git" ]; then
+            git clone https://github.com/amroamer/AICompAgent.git /opt/apps/AICompAgent
+          fi
           cd /opt/apps/AICompAgent && git fetch origin main && git reset --hard origin/main
+
+          # ============================================
+          # Slides Generator
+          # ============================================
+          if [ ! -d "/opt/apps/slides-generator/.git" ]; then
+            git clone https://github.com/amroamer/slides-generator.git /opt/apps/slides-generator
+          fi
           cd /opt/apps/slides-generator && git fetch origin main && git reset --hard origin/main
+
+          # ============================================
+          # Data Owner Agent
+          # ============================================
+          if [ ! -d "/opt/apps/data-owner-agent/.git" ]; then
+            git clone https://github.com/amroamer/data-owner-agent.git /opt/apps/data-owner-agent
+          fi
           cd /opt/apps/data-owner-agent && git fetch origin main && git reset --hard origin/main
+
+          # ============================================
+          # Sahab (Cloud Sahab)
+          # ============================================
+          if [ ! -d "/opt/apps/sahab/.git" ]; then
+            git clone https://github.com/amroamer/sahab.git /opt/apps/sahab
+          fi
           cd /opt/apps/sahab && git fetch origin main && git reset --hard origin/main
+
+          # ============================================
+          # AI Data Landing Page
+          # ============================================
+          if [ ! -d "/opt/apps/Ai-Data-LandingPage/.git" ]; then
+            git clone https://github.com/amroamer/Ai-Data-LandingPage.git /opt/apps/Ai-Data-LandingPage
+          fi
           cd /opt/apps/Ai-Data-LandingPage && git fetch origin main && git reset --hard origin/main
+
+          # ============================================
+          # EA Arch Agent
+          # ============================================
+          if [ ! -d "/opt/apps/EA-Arch-Agent/.git" ]; then
+            git clone https://github.com/amroamer/EA-Arch-Agent.git /opt/apps/EA-Arch-Agent
+          fi
+          cd /opt/apps/EA-Arch-Agent && git fetch origin main && git reset --hard origin/main
+
+          # ============================================
+          # Key Pulse View (kpv) — /khda
+          # ============================================
+          if [ ! -d "/opt/apps/key-pulse-view/.git" ]; then
+            git clone https://github.com/amroamer/key-pulse-view.git /opt/apps/key-pulse-view
+          fi
+          cd /opt/apps/key-pulse-view && git fetch origin main && git reset --hard origin/main
+
+          # ============================================
+          # KPMG Infra (orchestrator)
+          # ============================================
           cd /opt/kpmg-infra && git fetch origin main && git reset --hard origin/main
           chmod +x /opt/kpmg-infra/scripts/*.sh
           ./scripts/deploy.sh

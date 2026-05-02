@@ -26,6 +26,10 @@ services:
       - badges-backend
       - landing-app
       - auth-service
+      - arch-frontend
+      - arch-backend
+      - kpv-frontend
+      - kpv-api
 
   # ============================================
   # Shared Ollama (one container, all apps connect)
@@ -318,6 +322,91 @@ services:
       - kpmg-network
 
   # ============================================
+  # EA Arch Agent
+  # ============================================
+  arch-backend:
+    build:
+      context: /opt/apps/EA-Arch-Agent/backend
+    container_name: arch-backend
+    restart: unless-stopped
+    env_file:
+      - /opt/apps/EA-Arch-Agent/.env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${ARCH_POSTGRES_USER}:${ARCH_POSTGRES_PASSWORD}@arch-db:5432/${ARCH_POSTGRES_DB}
+      - OLLAMA_HOST=http://ollama-shared:11434
+    depends_on:
+      arch-db:
+        condition: service_healthy
+      ollama-shared:
+        condition: service_started
+    networks:
+      - kpmg-network
+
+  arch-frontend:
+    build:
+      context: /opt/apps/EA-Arch-Agent/frontend
+      target: production
+    container_name: arch-frontend
+    restart: unless-stopped
+    command: npm run preview -- --host 0.0.0.0 --port 5173
+    depends_on:
+      - arch-backend
+    networks:
+      - kpmg-network
+
+  arch-db:
+    image: postgres:16-alpine
+    container_name: arch-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${ARCH_POSTGRES_USER}
+      - POSTGRES_PASSWORD=${ARCH_POSTGRES_PASSWORD}
+      - POSTGRES_DB=${ARCH_POSTGRES_DB}
+    volumes:
+      - arch_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ARCH_POSTGRES_USER} -d ${ARCH_POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - kpmg-network
+
+  # ============================================
+  # Key Pulse View (kpv) — /khda
+  # ============================================
+  kpv-api:
+    build:
+      context: /opt/apps/key-pulse-view/server
+      dockerfile: ../Dockerfile.backend
+    container_name: kpv-api
+    restart: unless-stopped
+    environment:
+      OLLAMA_HOST: http://ollama-shared:11434
+      OLLAMA_MODEL: qwen2.5:7b
+      DATA_DIR: /data
+    volumes:
+      - /opt/apps/key-pulse-view/src/data:/data:ro
+    depends_on:
+      ollama-shared:
+        condition: service_started
+    networks:
+      - kpmg-network
+
+  kpv-frontend:
+    build:
+      context: /opt/apps/key-pulse-view
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_BASE: /khda/
+    container_name: kpv-frontend
+    restart: unless-stopped
+    depends_on:
+      - kpv-api
+    networks:
+      - kpmg-network
+
+  # ============================================
   # AI Data Landing Page
   # ============================================
   landing-app:
@@ -347,6 +436,7 @@ volumes:
   badges_uploads:
   auth_db_data:
   ollama_models:
+  arch_db_data:
 
 networks:
   kpmg-network:
