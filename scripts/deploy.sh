@@ -9,6 +9,8 @@ echo "=== Pulling latest images ==="
 docker compose --env-file .env.production pull --ignore-buildable
 echo "=== Building all services (no cache) ==="
 docker compose --env-file .env.production build --no-cache
+echo "=== Pruning old build cache ==="
+docker builder prune -af --filter "until=24h"
 echo "=== Starting services ==="
 docker compose --env-file .env.production up -d --remove-orphans
 echo "=== Restarting Nginx to pick up fresh IPs ==="
